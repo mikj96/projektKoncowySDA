@@ -25,7 +25,7 @@ filepath = fr"C:\\Users\Enter\OneDrive\Pulpit\smogData\\"
 def creating_folder(filepath):
     directory = 'sensors score'
     path = os.path.join(filepath, directory)
-    print('(1/1) Created folder for data.')
+    return print('(1/1) Created folder for data.')
 
 #1. FUNKCJA ITERUJĄCA
 #BĘDZIE ITEROWAĆ DANE PO MIESIĄCU ZAWARTYM W NAZWIE PLIKU
@@ -42,7 +42,7 @@ def month_iteration():
         print(f'({counter}/12) Saving weather data for month: {month}')
         counter += 1
     return print('(1/1) Finished saving weather data for all months.')
-
+#do czego służy tak naprawdę? - do odpalenia funkcji grouping_sensors c
 
 
 #2. ZAPISYWANIE DANYCH Z WIELU MIESIĘCY OSOBNO DLA KAŻDEGO SENSORA
@@ -70,22 +70,22 @@ def grouping_sensors(month):
     number = 1
 
     while counter >= 2:
-        for name in sensors:
+        for sensor_name in sensors:
             try:
                 df_new = data[
-                    [f'UTC time',f'{name}_temperature', f'{name}_humidity', f'{name}_pressure', f'{name}_pm1', f'{name}_pm25',
-                     f'{name}_pm10']]
-                df_new.to_csv(path_or_buf=fr"{filepath}sensors score\\{name}{month}.csv")
-                print(f'({number}/{amount})Finished procedure for sensor number: {name}.')
+                    [f'UTC time',f'{sensor_name}_temperature', f'{sensor_name}_humidity', f'{sensor_name}_pressure', f'{sensor_name}_pm1', f'{sensor_name}_pm25',
+                     f'{sensor_name}_pm10']]
+                df_new.to_csv(path_or_buf=fr"{filepath}sensors score\\{sensor_name}{month}.csv")
+                print(f'({number}/{amount})Finished procedure for sensor number: {sensor_name}.')
 
-                sensors.pop(sensors.index(f'{name}'))
+                sensors.pop(sensors.index(f'{sensor_name}'))
                 counter = counter - 1
                 correct += 1
                 number += 1
 
             except KeyError:
-                print(f'({number}/{amount})Incomplete table for sensor number: {name}.')
-                sensors.pop(sensors.index(f'{name}'))
+                print(f'({number}/{amount})Incomplete table for sensor number: {sensor_name}.')
+                sensors.pop(sensors.index(f'{sensor_name}'))
                 counter = counter - 1
                 faulty += 1
                 number += 1
