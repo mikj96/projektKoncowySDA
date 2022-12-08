@@ -17,6 +17,7 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.model_selection import train_test_split
 from sklearn import *
 import webbrowser
+from sklearn.metrics import *
 
 #0. ROBOCZE NAZWY MIESIĘCY + ŚCIEŻKA GDZIE POBRALIŚMY DANE
 
@@ -93,3 +94,97 @@ for sensor in real_sensors:
         os.remove(fr"{filepath}sensors score\\sensor{sensor}.csv")
 print('(7/7) Deleting auxilary data completed.')
 
+7# RYSOWANIE WYKRESU
+
+for sensor in real_sensors:
+    dane = pd.read_csv(fr"C:\\Users\Enter\OneDrive\Pulpit\smogData\sensors score\sensor{sensor}_mean.csv", parse_dates=True,
+                       index_col='UTC time')
+    dane = dane.dropna(how='any')
+    dane.rename(columns={f'{sensor}_temperature': 'Temperatura', f'{sensor}_humidity': 'Wilgotnosc'
+        , f'{sensor}_pressure': 'Cisnienie', f'{sensor}_pm1': 'Stezenie PM1', f'{sensor}_pm25': 'Stezenie PM25',
+                         f'{sensor}_pm10': 'Stezenie PM10'}, inplace=True)
+    print(dane)
+    fig, ax = plt.subplots()
+
+    # zmienna_wykresu = str(input('temperature/humidity/pressure'))
+    ax.plot(dane.index, dane['Temperatura'], color='r')
+    ax.xaxis.set_tick_params(rotation=90)
+
+    # rysujemy wykresy dla każdego stężenia PMI
+    # color - kolor markera, linestyle - styl linii, label - nazwa krzywej; potrzebna do legendy
+    ax2 = ax.twinx()
+    ax2.plot(dane.index, dane['Stezenie PM1'], color='b', linestyle='--', label='PMI 1')
+    ax2.plot(dane.index, dane['Stezenie PM25'], color='c', linestyle='--', label='PMI 2.5')
+    ax2.plot(dane.index, dane['Stezenie PM10'], color='g', linestyle='--', label='PMI 10')
+    ax2.legend()
+    ax2.set_ylabel('Stężenia PMI')
+    ax.set_title(f'Wykres temperatura/stężenie pyłków dla sensora:{sensor}')
+    ax.set_xlabel('Data')
+    ax.set_ylabel('Temperatura')
+
+    ax.grid()
+    plt.show()
+
+
+#8.1. REGRESJA LINIOWA
+#8.1.1 TWORZENIE MODELU
+dane = pd.read_csv(fr"C:\Users\Enter\OneDrive\Pulpit\smogData\sensors score\sensor170_mean.csv", parse_dates=True,
+                       index_col='UTC time')
+dane = dane.dropna(how='any')
+dane.rename(columns={f'170_temperature': 'Temperatura', f'170_humidity': 'Wilgotnosc'
+        , f'170_pressure': 'Cisnienie', f'170_pm1': 'Stezenie PM1', f'170_pm25': 'Stezenie PM25',
+                         f'170_pm10': 'Stezenie PM10'}, inplace=True)
+print(dane)
+X = dane[['Temperatura']]
+y = dane['Stezenie PM1']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+model_linear = LinearRegression()
+model_linear.fit(np.array(X_train).reshape(-1,1), y_train)
+predict_data = np.array([[0],[5],[25],[15]])
+y_predict = model_linear.predict(predict_data)
+print(y_predict)
+
+#8.2.1. OBLICZANIE PARAMETRÓW MODELU
+#WSPÓŁCZYNNIK R2
+score = r2_score(y, y_predict)
+print(score)
+
+#WSPÓŁCZYNNIK MAE
+score = mean_absolute_error(y_test, y_predict)
+print(score)
+
+#WSPÓŁCZYNNIK MAPE
+score = mean_absolute_error_percentage(y_test, y_predict)
+print(score)
+
+#WSPÓŁCZYNNIK MSE
+score = mean_squared_error(y_test, y_predict)
+print(score)
+
+#WSPÓŁCZYNNIK RMSE
+score = mean_absolute_error(y_test, y_predict, squared = False)
+print(score)
+
+'''
+#8.2 REGRESJA WIELOMIANOWA
+poly = PolynomialFeatures(degree=3)
+X_poly = poly.fit_transform(X)
+
+model = LinearRegression()
+model.fit(X_poly, y)
+
+predict_data = np.array([[10],[5]]).reshape(-1,1)
+print(predict_data)
+predict_data_poly = poly.transform(predict_data)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y,  test_size=0.2)
+
+print(X.shape, y.shape)
+print(X_train.shape, y_train.shape)
+print(X_test.shape, y_test.shape)
+
+predict_data = np.array([[10],[5]])
+predict_data_poly = poly.transform(predict_data)
+model.predict(predict_data_poly)
+'''
