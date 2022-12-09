@@ -15,9 +15,11 @@ register_matplotlib_converters()
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeRegressor
 from sklearn import *
 import webbrowser
 from sklearn.metrics import *
+from sklearn.model_selection import KFold
 
 #0. ROBOCZE NAZWY MIESIĘCY + ŚCIEŻKA GDZIE POBRALIŚMY DANE
 
@@ -103,9 +105,8 @@ for sensor in real_sensors:
     dane.rename(columns={f'{sensor}_temperature': 'Temperatura', f'{sensor}_humidity': 'Wilgotnosc'
         , f'{sensor}_pressure': 'Cisnienie', f'{sensor}_pm1': 'Stezenie PM1', f'{sensor}_pm25': 'Stezenie PM25',
                          f'{sensor}_pm10': 'Stezenie PM10'}, inplace=True)
-    print(dane)
-    fig, ax = plt.subplots()
 
+    fig, ax = plt.subplots()
     # zmienna_wykresu = str(input('temperature/humidity/pressure'))
     ax.plot(dane.index, dane['Temperatura'], color='r')
     ax.xaxis.set_tick_params(rotation=90)
@@ -123,68 +124,118 @@ for sensor in real_sensors:
     ax.set_ylabel('Temperatura')
 
     ax.grid()
-    plt.show()
+    #plt.show() #na razie zablokowane żeby nie rysowało wykresów
 
-
+#8. PREDYKCJA
 #8.1. REGRESJA LINIOWA
-#8.1.1 TWORZENIE MODELU
-dane = pd.read_csv(fr"C:\Users\Enter\OneDrive\Pulpit\smogData\sensors score\sensor170_mean.csv", parse_dates=True,
-                       index_col='UTC time')
-dane = dane.dropna(how='any')
-dane.rename(columns={f'170_temperature': 'Temperatura', f'170_humidity': 'Wilgotnosc'
-        , f'170_pressure': 'Cisnienie', f'170_pm1': 'Stezenie PM1', f'170_pm25': 'Stezenie PM25',
-                         f'170_pm10': 'Stezenie PM10'}, inplace=True)
-print(dane)
-X = dane[['Temperatura']]
-y = dane['Stezenie PM1']
+print('(1/2) Inititating procedure to calculate linear regression.')
+pmi_category = str(input('(2/2) Choose concentration metric for linear regression: Stezenie PM1, Stezenie PM25 ,Stezenie PM10'))
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-model_linear = LinearRegression()
-model_linear.fit(np.array(X_train).reshape(-1,1), y_train)
-predict_data = np.array([[0],[5],[25],[15]])
-y_predict = model_linear.predict(predict_data)
-print(y_predict)
+def linear_regr(pmi_cat):
+    r2_scorelist = {}
+    counter = 0
+    tasks = len(real_sensors)
+    for sensor in real_sensors:
+        try:
+            dane = pd.read_csv(fr"C:\Users\Enter\OneDrive\Pulpit\smogData\sensors score\sensor{sensor}_mean.csv",
+                               parse_dates=True,
+                               index_col='UTC time')
+            dane = dane.dropna(how='any')
+            dane.rename(columns={f'{sensor}_temperature': 'Temperatura', f'{sensor}_humidity': 'Wilgotnosc'
+                , f'{sensor}_pressure': 'Cisnienie', f'{sensor}_pm1': 'Stezenie PM1', f'{sensor}_pm25': 'Stezenie PM25',
+                                 f'{sensor}_pm10': 'Stezenie PM10'}, inplace=True)
 
-#8.2.1. OBLICZANIE PARAMETRÓW MODELU
-#WSPÓŁCZYNNIK R2
-score = r2_score(y, y_predict)
-print(score)
+            dane = dane.astype(int)
+            X = dane[['Temperatura', 'Wilgotnosc', 'Cisnienie']]
+            y = dane[f'{pmi_cat}']
 
-#WSPÓŁCZYNNIK MAE
-score = mean_absolute_error(y_test, y_predict)
-print(score)
+            model = LinearRegression().fit(X, y)
+            y_predict = model.predict(X)
+            r2 = r2_score(y, y_predict)
+            r2_scorelist.update({sensor: r2})
+            counter += 1
+            print(f'({counter}/{tasks}) Adding score for {sensor} to database.')
+        except ValueError:
+            counter += 1
+            print(f'{counter}/{tasks})Sensor {sensor} has incomplete or faulty data.')
+            continue
+    highest_score = np.max(list(r2_scorelist.values()))
+    lowest_score = np.min(list(r2_scorelist.values()))
+    mean_score = np.mean(list(r2_scorelist.values()))
+    if mean_score <= 0.5 and mean_score > 0:
+        print(f'(1/5) Highest prediction score was: {highest_score}.')
+        print(f'(2/5) Lowest prediction score was: {lowest_score}.')
+        print(f'(3/5) Overall average R2 score was: {mean_score} which is not satysfing.',
+              "(4/5) It's not enough for appropriate model.", sep='\n')
+    else:
+        print(f'(1/5)  Highest prediction score was: {highest_score}.')
+        print(f'(2/5)  Lowest prediction score was: {lowest_score}.')
+        print(f'(3/5)  Overall average R2 score was: {mean_score} which is satysfing.',
+              "(4/5) It's enough for appropriate model.", sep='\n')
+    return print('(5/5) Procedure finished.')
 
-#WSPÓŁCZYNNIK MAPE
-score = mean_absolute_error_percentage(y_test, y_predict)
-print(score)
+linear_regr(pmi_category)
 
-#WSPÓŁCZYNNIK MSE
-score = mean_squared_error(y_test, y_predict)
-print(score)
+#8.2. REGRESJA WIELOMIANOWA
+print('(1/2) Inititating procedure to calculate polynomial regression.')
+pmi_category = str(input('(2/2) Choose concentration metric for polynomial regression: Stezenie PM1, Stezenie PM25 ,Stezenie PM10'))
 
-#WSPÓŁCZYNNIK RMSE
-score = mean_absolute_error(y_test, y_predict, squared = False)
-print(score)
+def poly_regr(pmi_cat):
+    r2_scorelist = {}
+    r2_highest = {}
+    counter = 0
+    tasks = len(real_sensors)
+    for sensor in real_sensors:
+        try:
+            dane = pd.read_csv(fr"C:\Users\Enter\OneDrive\Pulpit\smogData\sensors score\sensor{sensor}_mean.csv",
+                               parse_dates=True,
+                               index_col='UTC time')
+            dane = dane.dropna(how='any')
+            dane.rename(columns={f'{sensor}_temperature': 'Temperatura', f'{sensor}_humidity': 'Wilgotnosc'
+                , f'{sensor}_pressure': 'Cisnienie', f'{sensor}_pm1': 'Stezenie PM1', f'{sensor}_pm25': 'Stezenie PM25',
+                                 f'{sensor}_pm10': 'Stezenie PM10'}, inplace=True)
 
-'''
-#8.2 REGRESJA WIELOMIANOWA
-poly = PolynomialFeatures(degree=3)
-X_poly = poly.fit_transform(X)
+            dane = dane.astype(int)
+            X = dane[['Temperatura', 'Wilgotnosc', 'Cisnienie']]
+            y = dane[f'{pmi_cat}']
 
-model = LinearRegression()
-model.fit(X_poly, y)
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            poly = PolynomialFeatures(degree=3)
+            X_poly = poly.fit_transform(X.values)
+            model = LinearRegression().fit(X_poly, y)
+            predict_data = X_test.values
+            predict_data_poly = poly.transform(predict_data)
+            y_predict = model.predict(predict_data_poly)
+            r2 = r2_score(y_test, y_predict)
+            r2_scorelist.update({sensor: r2})
+            if r2 >= 0.7:
+                r2_highest.update({sensor: r2})
+            counter += 1
+            print(f'({counter}/{tasks}) Adding score for {sensor} to database.')
+        except ValueError:
+            counter += 1
+            print(f'{counter}/{tasks})Sensor {sensor} has incomplete or faulty data.')
+            continue
+    highest_score = np.max(list(r2_scorelist.values()))
+    lowest_score = np.min(list(r2_scorelist.values()))
+    mean_score = np.mean(list(r2_scorelist.values()))
+    if mean_score <= 0.5 and mean_score > 0:
+        if bool(r2_highest) == False:
+            print(f'(1/5) Highest prediction score was: {highest_score}.')
+            print(f'(2/5) Lowest prediction score was: {lowest_score}.')
+            print(f'(3/5) Overall average R2 score was: {mean_score} which is not satysfing.',
+                  "(4/5) It's not enough for appropriate model.", sep='\n')
+        else:
+            print(f'(0/5) Group of sensors which gave appropriate results: {r2_highest}')
+            print(f'(1/5) Highest prediction score was: {highest_score}.')
+            print(f'(2/5) Lowest prediction score was: {lowest_score}.')
+            print(f'(3/5) Overall average R2 score was: {mean_score} which is not satysfing.',
+                  "(4/5) It's not enough for appropriate model.", sep='\n')
+    else:
+        print(f'(1/5)  Highest prediction score was: {highest_score}.')
+        print(f'(2/5)  Lowest prediction score was: {lowest_score}.')
+        print(f'(3/5)  Overall average R2 score was: {mean_score} which is satysfing.',
+              "(4/5) It's enough for appropriate model.", sep='\n')
+    return print('(5/5) Procedure finished.')
 
-predict_data = np.array([[10],[5]]).reshape(-1,1)
-print(predict_data)
-predict_data_poly = poly.transform(predict_data)
-
-X_train, X_test, y_train, y_test = train_test_split(X, y,  test_size=0.2)
-
-print(X.shape, y.shape)
-print(X_train.shape, y_train.shape)
-print(X_test.shape, y_test.shape)
-
-predict_data = np.array([[10],[5]])
-predict_data_poly = poly.transform(predict_data)
-model.predict(predict_data_poly)
-'''
+poly_regr(pmi_category)
